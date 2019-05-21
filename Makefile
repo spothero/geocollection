@@ -1,26 +1,20 @@
 default_target: all
 
-all: bootstrap vendor test
+all: lint test
 
-# Bootstrapping for base golang package deps
-BOOTSTRAP=\
-	github.com/golang/dep/cmd/dep \
-	github.com/alecthomas/gometalinter
+.PHONY: all test coverage lint
 
-$(BOOTSTRAP):
-	go get -u $@
+LINTER_INSTALLED := $(shell sh -c 'which golangci-lint')
 
-bootstrap: $(BOOTSTRAP)
-	gometalinter --install
-
-vendor:
-	dep ensure -v -vendor-only
+lint:
+ifdef LINTER_INSTALLED
+	golangci-lint run
+else
+	$(error golangci-lint not found, skipping linting. Installation instructions: https://github.com/golangci/golangci-lint#ci-installation)
+endif
 
 test:
 	go test -race -v ./... -coverprofile=coverage.txt -covermode=atomic
 
 coverage: test
 	go tool cover -html=coverage.txt
-
-clean:
-	rm -rf vendor

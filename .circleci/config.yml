@@ -1,0 +1,27 @@
+version: 2.1
+jobs:
+  lint:
+    docker:
+      - image: circleci/golang:1.12
+    working_directory: /tmp/geocollection
+    steps:
+      - checkout
+      - run: curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b /go/bin latest
+      - run: make lint
+  test:
+    docker:
+      - image: circleci/golang:1.12
+    working_directory: /tmp/geocollection
+    steps:
+      - checkout
+      - run: mkdir -p /tmp/test-reports/unit # CircleCI likes test results to be in sub-directories for naming
+      - run: gotestsum --junitfile /tmp/test-reports/unit/report.xml -- ./... -race -coverprofile=coverage.txt -covermode=atomic
+      - store_test_results:
+          path: /tmp/test-reports
+      - run: bash <(curl -s https://codecov.io/bash)
+workflows:
+  version: 2
+  test_and_lint:
+    jobs:
+      - lint
+      - test
