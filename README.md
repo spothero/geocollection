@@ -1,7 +1,7 @@
 # Location-Based Collection for Go
 
 [![GoDoc](https://godoc.org/github.com/spothero/geocollection?status.svg)](https://godoc.org/github.com/spothero/geocollection)
-[![Build Status](https://travis-ci.org/spothero/geocollection.png?branch=master)](https://travis-ci.org/spothero/geocollection)
+[![Build Status](https://circleci.com/gh/spothero/geocollection.svg?style=shield)](https://circleci.com/gh/spothero/geocollection)
 [![codecov](https://codecov.io/gh/spothero/geocollection/branch/master/graph/badge.svg)](https://codecov.io/gh/spothero/geocollection)
 [![Go Report Card](https://goreportcard.com/badge/github.com/spothero/geocollection)](https://goreportcard.com/report/github.com/spothero/geocollection)
 
