@@ -1,4 +1,4 @@
-// Copyright 2018 SpotHero
+// Copyright 2019 SpotHero
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,25 +19,23 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockGeoLocationCache mocks the GeoLocationCache implementation for use in tests
-type MockGeoLocationCache struct {
+// MockCollection provides a mock LocationCollection for use in tests
+type MockCollection struct {
 	mock.Mock
 }
 
 // ItemsWithinDistance is a mocked version of ItemsWithinDistance
-func (m *MockGeoLocationCache) ItemsWithinDistance(
-	latitude, longitude, distanceMeters float64, params geocollection.SearchCoveringParameters,
-) ([]int, geocollection.SearchCoveringResult) {
-	args := m.Called(latitude, longitude, distanceMeters)
-	return args.Get(0).([]int), args.Get(1).(geocollection.SearchCoveringResult)
+func (m *MockCollection) ItemsWithinDistance(latitude, longitude, distanceMeters float64, params geocollection.SearchCoveringParameters) ([]interface{}, geocollection.SearchCoveringResult) {
+	args := m.Called(latitude, longitude, distanceMeters, params)
+	return args.Get(0).([]interface{}), args.Get(1).(geocollection.SearchCoveringResult)
 }
 
 // Set is a mocked version of Set
-func (m *MockGeoLocationCache) Set(id int, latitude, longitude float64) {
-	m.Called(id, latitude, longitude)
+func (m *MockCollection) Set(key, contents interface{}, latitude, longitude float64) {
+	m.Called(key, contents, latitude, longitude)
 }
 
 // Delete is a mocked version of Delete
-func (m *MockGeoLocationCache) Delete(id int) {
-	m.Called(id)
+func (m *MockCollection) Delete(key interface{}) {
+	m.Called(key)
 }
