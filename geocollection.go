@@ -1,4 +1,4 @@
-// Copyright 2018 SpotHero
+// Copyright 2019 SpotHero
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package geocollection provides a data structure for storing and quickly
+// searching for items based on geographic coordinates on Earth.
 package geocollection
 
 import (
-	"bytes"
-	"encoding/gob"
 	"sync"
 
 	"github.com/golang/geo/s1"
@@ -30,8 +30,8 @@ const EarthRadiusMeters = 6371008.8
 // from s2 because they do not export this value
 const maxCellLevel = 30
 
-// cellItems is a map of cell ids to the id of an item geographically contained in that cell
-type cellItems map[uint64]map[int]bool
+// cellItems is a map of cell ids to the set of keys pertaining to items geographically contained in that cell
+type cellItems map[uint64]map[interface{}]bool
 
 // itemIndex keeps track of which cells a given item belongs to in order to enable fast deletions
 type itemIndex struct {
@@ -39,44 +39,60 @@ type itemIndex struct {
 	cellLevel    int
 }
 
-// GeoLocationCache implements the GeoLocationCollection interface and provides a location based
+// collectionContents stores the contents of a key and the original latitude and longitude
+// stored with the key.
+type collectionContents struct {
+	contents            interface{}
+	latitude, longitude float64
+}
+
+// Collection implements the GeoLocationCollection interface and provides a location based
 // cache
-type GeoLocationCache struct {
+type Collection struct {
 	// cells is a map of cell level to the items contained in each cell at that zoom level
 	cells map[int]cellItems
-	// items maps each item id stored to its associated cells to enable fast deletions
-	items map[int][]itemIndex
-	mutex sync.RWMutex
+	// keys maps each key stored to its associated cells to enable fast deletions
+	keys map[interface{}][]itemIndex
+	// items maps the item key to the item contents
+	items map[interface{}]collectionContents
+	mutex *sync.RWMutex
 }
 
-// GeoLocationCollection defines the interface for interacting with Geo-based collections
-type GeoLocationCollection interface {
-	Set(id int, latitude, longitude float64)
-	Delete(id int)
-	ItemsWithinDistance(latitude, longitude, distanceMeters float64, params SearchCoveringParameters) ([]int, SearchCoveringResult)
+// LocationCollection defines the interface for interacting with Geo-based collections
+type LocationCollection interface {
+	Set(key, contents interface{}, latitude, longitude float64)
+	Delete(key interface{})
+	ItemsWithinDistance(latitude, longitude, distanceMeters float64, params SearchCoveringParameters) ([]interface{}, SearchCoveringResult)
 }
 
-func init() {
-	gob.Register(&GeoLocationCache{})
-}
-
-// NewGeoLocationCache constructs a new GeoLocationCache object
-func NewGeoLocationCache() *GeoLocationCache {
-	return &GeoLocationCache{
+// NewCollection creates a new collection
+func NewCollection() Collection {
+	return Collection{
 		cells: make(map[int]cellItems),
-		items: make(map[int][]itemIndex),
+		keys:  make(map[interface{}][]itemIndex),
+		items: make(map[interface{}]collectionContents),
+		mutex: &sync.RWMutex{},
 	}
 }
 
-// Set adds an item by id to the geo location cache at a particular latitude and longitude
-func (glc *GeoLocationCache) Set(id int, latitude, longitude float64) {
+// Set adds an item with a given key to the geo collection at a particular latitude and longitude.
+// If the given key already exists in the collection, it is created, otherwise the contents and location is
+// updated to the new values.
+func (glc Collection) Set(key, contents interface{}, latitude, longitude float64) {
 	glc.mutex.Lock()
 	defer glc.mutex.Unlock()
-	if _, ok := glc.items[id]; ok {
-		glc.delete(id, false)
-	} else {
-		glc.items[id] = make([]itemIndex, 0)
+
+	newContents := collectionContents{contents: contents, latitude: latitude, longitude: longitude}
+	if existingContents, ok := glc.items[key]; ok &&
+		existingContents.latitude == latitude && existingContents.longitude == longitude {
+		// contents changed but the location has not, swap contents and exit
+		glc.items[key] = newContents
+		return
 	}
+
+	glc.delete(key)
+	glc.items[key] = newContents
+	glc.keys[key] = make([]itemIndex, 0, maxCellLevel)
 	leafCellID := s2.CellIDFromLatLng(s2.LatLngFromDegrees(latitude, longitude))
 	for level := maxCellLevel; level >= 0; level-- {
 		if _, ok := glc.cells[level]; !ok {
@@ -84,39 +100,37 @@ func (glc *GeoLocationCache) Set(id int, latitude, longitude float64) {
 		}
 		cellPos := leafCellID.Parent(level).Pos()
 		if _, ok := glc.cells[level][cellPos]; !ok {
-			glc.cells[level][cellPos] = map[int]bool{id: true}
-		} else {
-			glc.cells[level][cellPos][id] = true
+			glc.cells[level][cellPos] = make(map[interface{}]bool)
 		}
-		ii := itemIndex{
-			cellPosition: cellPos,
-			cellLevel:    level,
-		}
-		glc.items[id] = append(glc.items[id], ii)
+		glc.cells[level][cellPos][key] = true
+		glc.keys[key] = append(
+			glc.keys[key],
+			itemIndex{
+				cellPosition: cellPos,
+				cellLevel:    level,
+			},
+		)
 	}
 }
 
-// Delete removes an item by id from the geo location cache
-func (glc *GeoLocationCache) Delete(id int) {
-	glc.delete(id, true)
+// Delete removes an item by its key from the collection.
+func (glc Collection) Delete(key interface{}) {
+	glc.mutex.Lock()
+	defer glc.mutex.Unlock()
+	glc.delete(key)
 }
 
-// delete is the internal version of Delete that actually performs the deletion.
-// This function contains an optional lockMutex flag. The mutex should always
-// be locked when deleting unless it is locked by the caller.
-func (glc *GeoLocationCache) delete(id int, lockMutex bool) {
-	if lockMutex {
-		glc.mutex.Lock()
-		defer glc.mutex.Unlock()
-	}
-	itemIndices, ok := glc.items[id]
+// delete is the internal function that actually performs the deletion.
+func (glc Collection) delete(key interface{}) {
+	delete(glc.items, key)
+	itemIndices, ok := glc.keys[key]
 	if !ok {
 		return
 	}
 	for _, index := range itemIndices {
-		delete(glc.cells[index.cellLevel][index.cellPosition], id)
+		delete(glc.cells[index.cellLevel][index.cellPosition], key)
 	}
-	delete(glc.items, id)
+	delete(glc.keys, key)
 }
 
 // SearchCoveringResult are the boundaries of the cells used in the requested search
@@ -132,21 +146,20 @@ type SearchCoveringParameters struct {
 	UseFastCovering bool `json:"use_fast_covering"`
 }
 
-// ItemsWithinDistance returns all ids stored in the geo location cache within a distanceMeters radius from the provided
+// ItemsWithinDistance returns all contents stored in the collection within distanceMeters radius from the provided
 // latitude an longitude. Note that this is an approximation and items further than distanceMeters may be returned, but
 // it is guaranteed that all item ids returned are within distanceMeters. The caller of this function
 // must specify all parameters used to generate cell covering as well as whether or not the coverer will use the
 // standard covering algorithm or the fast covering algorithm which may be less precise.
-func (glc *GeoLocationCache) ItemsWithinDistance(
+func (glc Collection) ItemsWithinDistance(
 	latitude, longitude, distanceMeters float64, params SearchCoveringParameters,
-) ([]int, SearchCoveringResult) {
+) ([]interface{}, SearchCoveringResult) {
 	// First, generate a spherical cap with an arc length of distanceMeters centered on the given latitude/longitude
 	// This is the angle required (in radians) to trace an arc length of distanceMeters on the surface of the sphere
 	capAngle := s1.Angle(distanceMeters / EarthRadiusMeters)
 	capCenter := NewPointFromLatLng(latitude, longitude)
 	searchCap := s2.CapFromCenterAngle(capCenter, capAngle)
 
-	// TODO: tune/make the parameters to RegionCoverer configurable
 	coverer := s2.RegionCoverer{
 		MaxLevel: params.MaxLevel,
 		MinLevel: params.MinLevel,
@@ -163,7 +176,7 @@ func (glc *GeoLocationCache) ItemsWithinDistance(
 
 	glc.mutex.RLock()
 	defer glc.mutex.RUnlock()
-	foundIds := make([]int, 0)
+	foundItems := make([]interface{}, 0)
 	cellBounds := make(SearchCoveringResult, 0, len(cellUnion))
 	for _, cell := range cellUnion {
 		// get vertices in counter-clockwise order starting from the lower left
@@ -176,56 +189,12 @@ func (glc *GeoLocationCache) ItemsWithinDistance(
 		// close the polygon loop
 		vertices[4] = vertices[0]
 		cellBounds = append(cellBounds, vertices)
-		for k := range glc.cells[cell.Level()][cell.Pos()] {
-			foundIds = append(foundIds, k)
+		for key := range glc.cells[cell.Level()][cell.Pos()] {
+			foundItems = append(foundItems, glc.items[key].contents)
 		}
 	}
 
-	return foundIds, SearchCoveringResult(cellBounds)
-}
-
-// GobEncode allows GeoLocationCache to be gob encoded
-func (glc *GeoLocationCache) GobEncode() ([]byte, error) {
-	buf := bytes.Buffer{}
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(glc.cells); err != nil {
-		return nil, err
-	}
-	if err := enc.Encode(glc.items); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-// GobDecode allows GeoLocationCache to be gob decoded
-func (glc *GeoLocationCache) GobDecode(buf []byte) error {
-	dec := gob.NewDecoder(bytes.NewBuffer(buf))
-	if err := dec.Decode(&glc.cells); err != nil {
-		return err
-	}
-	return dec.Decode(&glc.items)
-}
-
-// GobEncode allows itemIndex to be gob encoded
-func (ii *itemIndex) GobEncode() ([]byte, error) {
-	buf := bytes.Buffer{}
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(ii.cellPosition); err != nil {
-		return nil, err
-	}
-	if err := enc.Encode(ii.cellLevel); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-// GobDecode allows itemIndex to be gob decoded
-func (ii *itemIndex) GobDecode(buf []byte) error {
-	dec := gob.NewDecoder(bytes.NewBuffer(buf))
-	if err := dec.Decode(&ii.cellPosition); err != nil {
-		return err
-	}
-	return dec.Decode(&ii.cellLevel)
+	return foundItems, SearchCoveringResult(cellBounds)
 }
 
 // NewPointFromLatLng constructs an s2 point from a lat/lon ordered pair
