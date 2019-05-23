@@ -63,6 +63,7 @@ type LocationCollection interface {
 	Set(key, contents interface{}, latitude, longitude float64)
 	Delete(key interface{})
 	ItemsWithinDistance(latitude, longitude, distanceMeters float64, params SearchCoveringParameters) ([]interface{}, SearchCoveringResult)
+	ItemByKey(key interface{}) interface{}
 }
 
 // NewCollection creates a new collection
@@ -78,33 +79,33 @@ func NewCollection() Collection {
 // Set adds an item with a given key to the geo collection at a particular latitude and longitude.
 // If the given key already exists in the collection, it is created, otherwise the contents and location is
 // updated to the new values.
-func (glc Collection) Set(key, contents interface{}, latitude, longitude float64) {
-	glc.mutex.Lock()
-	defer glc.mutex.Unlock()
+func (c Collection) Set(key, contents interface{}, latitude, longitude float64) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	newContents := collectionContents{contents: contents, latitude: latitude, longitude: longitude}
-	if existingContents, ok := glc.items[key]; ok &&
+	if existingContents, ok := c.items[key]; ok &&
 		existingContents.latitude == latitude && existingContents.longitude == longitude {
 		// contents changed but the location has not, swap contents and exit
-		glc.items[key] = newContents
+		c.items[key] = newContents
 		return
 	}
 
-	glc.delete(key)
-	glc.items[key] = newContents
-	glc.keys[key] = make([]itemIndex, 0, maxCellLevel)
+	c.delete(key)
+	c.items[key] = newContents
+	c.keys[key] = make([]itemIndex, 0, maxCellLevel)
 	leafCellID := s2.CellIDFromLatLng(s2.LatLngFromDegrees(latitude, longitude))
 	for level := maxCellLevel; level >= 0; level-- {
-		if _, ok := glc.cells[level]; !ok {
-			glc.cells[level] = make(cellItems)
+		if _, ok := c.cells[level]; !ok {
+			c.cells[level] = make(cellItems)
 		}
 		cellPos := leafCellID.Parent(level).Pos()
-		if _, ok := glc.cells[level][cellPos]; !ok {
-			glc.cells[level][cellPos] = make(map[interface{}]bool)
+		if _, ok := c.cells[level][cellPos]; !ok {
+			c.cells[level][cellPos] = make(map[interface{}]bool)
 		}
-		glc.cells[level][cellPos][key] = true
-		glc.keys[key] = append(
-			glc.keys[key],
+		c.cells[level][cellPos][key] = true
+		c.keys[key] = append(
+			c.keys[key],
 			itemIndex{
 				cellPosition: cellPos,
 				cellLevel:    level,
@@ -114,23 +115,23 @@ func (glc Collection) Set(key, contents interface{}, latitude, longitude float64
 }
 
 // Delete removes an item by its key from the collection.
-func (glc Collection) Delete(key interface{}) {
-	glc.mutex.Lock()
-	defer glc.mutex.Unlock()
-	glc.delete(key)
+func (c Collection) Delete(key interface{}) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.delete(key)
 }
 
 // delete is the internal function that actually performs the deletion.
-func (glc Collection) delete(key interface{}) {
-	delete(glc.items, key)
-	itemIndices, ok := glc.keys[key]
+func (c Collection) delete(key interface{}) {
+	delete(c.items, key)
+	itemIndices, ok := c.keys[key]
 	if !ok {
 		return
 	}
 	for _, index := range itemIndices {
-		delete(glc.cells[index.cellLevel][index.cellPosition], key)
+		delete(c.cells[index.cellLevel][index.cellPosition], key)
 	}
-	delete(glc.keys, key)
+	delete(c.keys, key)
 }
 
 // SearchCoveringResult are the boundaries of the cells used in the requested search
@@ -151,7 +152,7 @@ type SearchCoveringParameters struct {
 // it is guaranteed that all item ids returned are within distanceMeters. The caller of this function
 // must specify all parameters used to generate cell covering as well as whether or not the coverer will use the
 // standard covering algorithm or the fast covering algorithm which may be less precise.
-func (glc Collection) ItemsWithinDistance(
+func (c Collection) ItemsWithinDistance(
 	latitude, longitude, distanceMeters float64, params SearchCoveringParameters,
 ) ([]interface{}, SearchCoveringResult) {
 	// First, generate a spherical cap with an arc length of distanceMeters centered on the given latitude/longitude
@@ -174,8 +175,8 @@ func (glc Collection) ItemsWithinDistance(
 		cellUnion = coverer.Covering(region)
 	}
 
-	glc.mutex.RLock()
-	defer glc.mutex.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	foundItems := make([]interface{}, 0)
 	cellBounds := make(SearchCoveringResult, 0, len(cellUnion))
 	for _, cell := range cellUnion {
@@ -189,12 +190,23 @@ func (glc Collection) ItemsWithinDistance(
 		// close the polygon loop
 		vertices[4] = vertices[0]
 		cellBounds = append(cellBounds, vertices)
-		for key := range glc.cells[cell.Level()][cell.Pos()] {
-			foundItems = append(foundItems, glc.items[key].contents)
+		for key := range c.cells[cell.Level()][cell.Pos()] {
+			foundItems = append(foundItems, c.items[key].contents)
 		}
 	}
 
 	return foundItems, SearchCoveringResult(cellBounds)
+}
+
+// ItemByKey returns the contents stored in the collection by its key instead of by a geolocation lookup
+func (c Collection) ItemByKey(key interface{}) interface{} {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	contents, ok := c.items[key]
+	if !ok {
+		return nil
+	}
+	return contents.contents
 }
 
 // NewPointFromLatLng constructs an s2 point from a lat/lon ordered pair

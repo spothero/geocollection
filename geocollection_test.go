@@ -211,6 +211,24 @@ func TestCollection_ItemsWithinDistance(t *testing.T) {
 	}
 }
 
+func TestCollection_ItemByKey(t *testing.T) {
+	c := NewCollection()
+	c.items[1] = collectionContents{contents: "1"}
+	tests := []struct {
+		name             string
+		key              interface{}
+		expectedContents interface{}
+	}{
+		{"Item is retrieved from collection by its key", 1, "1"},
+		{"No key exists returns nil", 2, nil},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expectedContents, c.ItemByKey(test.key))
+		})
+	}
+}
+
 func TestEarthDistanceMeters(t *testing.T) {
 	// pick 2 points off a map that are roughly 105 meters of each other
 	p1 := NewPointFromLatLng(41.883170, -87.632278)
