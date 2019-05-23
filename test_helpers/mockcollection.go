@@ -39,3 +39,7 @@ func (m *MockCollection) Set(key, contents interface{}, latitude, longitude floa
 func (m *MockCollection) Delete(key interface{}) {
 	m.Called(key)
 }
+
+func (m *MockCollection) ItemByKey(key interface{}) interface{} {
+	return m.Called(key).Get(0)
+}
