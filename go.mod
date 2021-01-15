@@ -1,11 +1,10 @@
 module github.com/spothero/geocollection
 
-go 1.12
+go 1.15
 
 require (
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/golang/geo v0.0.0-20181008215305-476085157cff
-	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/stretchr/objx v0.1.1 // indirect
-	github.com/stretchr/testify v1.2.2
+	github.com/golang/geo v0.0.0-20210108004804-a63082ebfb66
+	github.com/stretchr/objx v0.3.0 // indirect
+	github.com/stretchr/testify v1.7.0
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
