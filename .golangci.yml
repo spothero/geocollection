@@ -3,7 +3,7 @@ run:
   tests: true
 linters:
   enable:
-    - golint
+    - revive
     - gofmt
     - staticcheck
     - vet
