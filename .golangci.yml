@@ -9,9 +9,11 @@ linters:
     - vet
     - misspell
     - ineffassign
-    - deadcode
     - errcheck
-    - structcheck
     - unused
-    - varcheck
   enable-all: false
+
+linters-settings:
+  govet:
+    check-shadowing: true
+    enable-all: true

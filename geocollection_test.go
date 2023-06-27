@@ -45,15 +45,16 @@ var (
 )
 
 type testItem struct {
-	key      int
 	contents string
-	lat, lon float64
+	key      int
+	lat      float64
+	lon      float64
 }
 
 func TestCollection_Set(t *testing.T) {
 	type cellContains struct {
-		cellID s2.CellID
 		item   testItem
+		cellID s2.CellID
 	}
 	tests := []struct {
 		name                   string
@@ -62,31 +63,31 @@ func TestCollection_Set(t *testing.T) {
 	}{
 		{
 			name:                   "Should set an item",
-			items:                  []testItem{{0, "0", cell1.lat, cell1.lon}},
-			expectedCellIDContains: []cellContains{{cell1.cellID, testItem{0, "0", cell1.lat, cell1.lon}}},
+			items:                  []testItem{{contents: "0", lat: cell1.lat, lon: cell1.lon}},
+			expectedCellIDContains: []cellContains{{cellID: cell1.cellID, item: testItem{contents: "0", lat: cell1.lat, lon: cell1.lon}}},
 		}, {
 			name: "Should set multiple items",
 			items: []testItem{
-				{0, "0", cell1.lat, cell1.lon},
-				{1, "1", cell2.lat, cell2.lon},
+				{contents: "0", lat: cell1.lat, lon: cell1.lon},
+				{key: 1, contents: "1", lat: cell2.lat, lon: cell2.lon},
 			},
 			expectedCellIDContains: []cellContains{
-				{cell1.cellID, testItem{0, "0", cell1.lat, cell1.lon}},
-				{cell2.cellID, testItem{1, "1", cell2.lat, cell2.lon}}},
+				{cellID: cell1.cellID, item: testItem{contents: "0", lat: cell1.lat, lon: cell1.lon}},
+				{cellID: cell2.cellID, item: testItem{key: 1, contents: "1", lat: cell2.lat, lon: cell2.lon}}},
 		}, {
 			name: "Should replace an item's coordinates",
 			items: []testItem{
-				{0, "0", cell1.lat, cell1.lon},
-				{0, "0", cell2.lat, cell2.lon},
+				{contents: "0", lat: cell1.lat, lon: cell1.lon},
+				{contents: "0", lat: cell2.lat, lon: cell2.lon},
 			},
-			expectedCellIDContains: []cellContains{{cell2.cellID, testItem{0, "0", cell2.lat, cell2.lon}}},
+			expectedCellIDContains: []cellContains{{cellID: cell2.cellID, item: testItem{contents: "0", lat: cell2.lat, lon: cell2.lon}}},
 		}, {
 			name: "Should replace an item's contents only",
 			items: []testItem{
-				{0, "0", cell1.lat, cell1.lon},
-				{0, "1", cell1.lat, cell1.lon},
+				{contents: "0", lat: cell1.lat, lon: cell1.lon},
+				{contents: "1", lat: cell1.lat, lon: cell1.lon},
 			},
-			expectedCellIDContains: []cellContains{{cell1.cellID, testItem{0, "1", cell1.lat, cell1.lon}}},
+			expectedCellIDContains: []cellContains{{cellID: cell1.cellID, item: testItem{contents: "1", lat: cell1.lat, lon: cell1.lon}}},
 		},
 	}
 	for _, test := range tests {
@@ -123,8 +124,8 @@ func TestCollection_Delete(t *testing.T) {
 	item := testItem{key: 0, lat: cell.lat, lon: cell.lon}
 	tests := []struct {
 		name                  string
-		deleteKey             int
 		expectedRemainingKeys []int
+		deleteKey             int
 	}{
 		{
 			name:                  "Should delete an item",
@@ -159,10 +160,12 @@ func TestCollection_ItemsWithinDistance(t *testing.T) {
 	item1 := testItem{key: 0, contents: "1", lat: cell1.lat, lon: cell1.lon}
 	item2 := testItem{key: 1, contents: "2", lat: cell2.lat, lon: cell2.lon}
 	tests := []struct {
-		name                                 string
-		searchLat, searchLon, distanceMeters float64
-		useFastAlgorithm                     bool
-		expectedContents                     []string
+		name             string
+		expectedContents []string
+		searchLat        float64
+		searchLon        float64
+		distanceMeters   float64
+		useFastAlgorithm bool
 	}{
 		{
 			name:             "Search should return relevant results",
@@ -215,12 +218,12 @@ func TestCollection_ItemByKey(t *testing.T) {
 	c := NewCollection()
 	c.items[1] = collectionContents{contents: "1"}
 	tests := []struct {
-		name             string
 		key              interface{}
 		expectedContents interface{}
+		name             string
 	}{
-		{"Item is retrieved from collection by its key", 1, "1"},
-		{"No key exists returns nil", 2, nil},
+		{name: "Item is retrieved from collection by its key", key: 1, expectedContents: "1"},
+		{name: "No key exists returns nil", key: 2},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
