@@ -1,6 +1,6 @@
 module github.com/spothero/geocollection
 
-go 1.20
+go 1.22.1
 
 require (
 	github.com/golang/geo v0.0.0-20210211234256-740aa86cb551
