@@ -40,6 +40,13 @@ func (m *MockCollection) Delete(key interface{}) {
 	m.Called(key)
 }
 
+// ItemByKey is a mock version of ItemByKey
 func (m *MockCollection) ItemByKey(key interface{}) interface{} {
 	return m.Called(key).Get(0)
+}
+
+// GetItems is a mock version of GetItems
+func (m *MockCollection) GetItems(pageSize, startIndex int) []interface{} {
+	args := m.Called(pageSize, startIndex)
+	return args.Get(0).([]interface{})
 }
