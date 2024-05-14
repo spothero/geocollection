@@ -239,10 +239,10 @@ func TestCollection_GetItems(t *testing.T) {
 	c.Set(item1.key, item1.contents, item1.lat, item1.lon)
 	c.Set(item2.key, item2.contents, item2.lat, item2.lon)
 	tests := []struct {
-		startIndex       int
-		pageSize         int
 		name             string
 		expectedContents []string
+		startIndex       int
+		pageSize         int
 	}{
 		{
 			name:             "All items is retrieved from collection",
