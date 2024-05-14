@@ -64,6 +64,7 @@ type LocationCollection interface {
 	Delete(key interface{})
 	ItemsWithinDistance(latitude, longitude, distanceMeters float64, params SearchCoveringParameters) ([]interface{}, SearchCoveringResult)
 	ItemByKey(key interface{}) interface{}
+	GetItems(pageSize, startIndex int) []interface{}
 }
 
 // NewCollection creates a new collection
@@ -207,6 +208,20 @@ func (c Collection) ItemByKey(key interface{}) interface{} {
 		return nil
 	}
 	return contents.contents
+}
+
+// GetItems get the items form the collection based on arg pageSize, startIndex
+func (c Collection) GetItems(pageSize, startIndex int) []interface{} {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	r := make([]interface{}, 0, len(c.items))
+	for _, v := range c.items {
+		r = append(r, v.contents)
+	}
+	if startIndex+pageSize < len(r) {
+		return r[startIndex:pageSize]
+	}
+	return r[startIndex:]
 }
 
 // NewPointFromLatLng constructs an s2 point from a lat/lon ordered pair

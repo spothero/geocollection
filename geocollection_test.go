@@ -232,6 +232,60 @@ func TestCollection_ItemByKey(t *testing.T) {
 	}
 }
 
+func TestCollection_GetItems(t *testing.T) {
+	c := NewCollection()
+	item1 := testItem{key: 0, contents: "1", lat: cell1.lat, lon: cell1.lon}
+	item2 := testItem{key: 1, contents: "2", lat: cell2.lat, lon: cell2.lon}
+	c.Set(item1.key, item1.contents, item1.lat, item1.lon)
+	c.Set(item2.key, item2.contents, item2.lat, item2.lon)
+	tests := []struct {
+		startIndex       int
+		pageSize         int
+		name             string
+		expectedContents []string
+	}{
+		{
+			name:             "All items is retrieved from collection",
+			expectedContents: []string{"1", "2"},
+			startIndex:       0,
+			pageSize:         10,
+		},
+		{
+			name:             "All items is retrieved from startIndex",
+			expectedContents: []string{"2"},
+			startIndex:       1,
+			pageSize:         10,
+		},
+		{
+			name:             "startIndex greater than length of the array",
+			expectedContents: []string{},
+			startIndex:       2,
+			pageSize:         10,
+		},
+		{
+			name:             "pageIndex is less than the length",
+			expectedContents: []string{"1"},
+			startIndex:       0,
+			pageSize:         1,
+		},
+		{
+			name:             "pageIndex and startIndex is less than the length",
+			expectedContents: []string{"2"},
+			startIndex:       1,
+			pageSize:         1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			results := c.GetItems(test.pageSize, test.startIndex)
+			assert.Len(t, results, len(test.expectedContents))
+			for _, content := range test.expectedContents {
+				assert.Contains(t, results, content)
+			}
+		})
+	}
+}
+
 func TestEarthDistanceMeters(t *testing.T) {
 	// pick 2 points off a map that are roughly 105 meters of each other
 	p1 := NewPointFromLatLng(41.883170, -87.632278)
