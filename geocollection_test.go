@@ -234,8 +234,9 @@ func TestCollection_ItemByKey(t *testing.T) {
 
 func TestCollection_GetItems(t *testing.T) {
 	c := NewCollection()
+	// using the same contents value because map to slice isn't ordered always.
 	item1 := testItem{key: 0, contents: "1", lat: cell1.lat, lon: cell1.lon}
-	item2 := testItem{key: 1, contents: "2", lat: cell2.lat, lon: cell2.lon}
+	item2 := testItem{key: 1, contents: "1", lat: cell2.lat, lon: cell2.lon}
 	c.Set(item1.key, item1.contents, item1.lat, item1.lon)
 	c.Set(item2.key, item2.contents, item2.lat, item2.lon)
 	tests := []struct {
@@ -245,14 +246,14 @@ func TestCollection_GetItems(t *testing.T) {
 		pageSize         int
 	}{
 		{
-			name:             "All items is retrieved from collection",
-			expectedContents: []string{"1", "2"},
+			name:             "All items are retrieved from collection",
+			expectedContents: []string{"1", "1"},
 			startIndex:       0,
 			pageSize:         10,
 		},
 		{
-			name:             "All items is retrieved from startIndex",
-			expectedContents: []string{"2"},
+			name:             "All items are retrieved from startIndex",
+			expectedContents: []string{"1"},
 			startIndex:       1,
 			pageSize:         10,
 		},
@@ -270,7 +271,7 @@ func TestCollection_GetItems(t *testing.T) {
 		},
 		{
 			name:             "pageIndex and startIndex is less than the length",
-			expectedContents: []string{"2"},
+			expectedContents: []string{"1"},
 			startIndex:       1,
 			pageSize:         1,
 		},
