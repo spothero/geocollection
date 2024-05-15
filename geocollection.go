@@ -17,6 +17,7 @@
 package geocollection
 
 import (
+	"github.com/samber/lo"
 	"sync"
 
 	"github.com/golang/geo/s1"
@@ -218,10 +219,7 @@ func (c Collection) GetItems(pageSize, startIndex int) []interface{} {
 	for _, v := range c.items {
 		r = append(r, v.contents)
 	}
-	if startIndex+pageSize < len(r) {
-		return r[startIndex:pageSize]
-	}
-	return r[startIndex:]
+	return lo.Slice(r, startIndex, startIndex+pageSize)
 }
 
 // NewPointFromLatLng constructs an s2 point from a lat/lon ordered pair
